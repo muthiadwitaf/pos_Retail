@@ -8,8 +8,8 @@ export class StockController {
     async getHistory(req: Request, res: Response, next: NextFunction) {
         try {
             const { productId } = req.query;
-            const history = await stockRepository.getHistory(productId as string);
-            return sendResponse(res, 200, { history });
+            const movements = await stockRepository.getHistory(productId as string);
+            return sendResponse(res, 200, { movements });
         } catch (error) {
             next(error);
         }

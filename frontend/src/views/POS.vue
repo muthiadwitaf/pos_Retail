@@ -141,8 +141,30 @@ const processPayment = async () => {
         const paymentResult = resPayment.data.data;
 
         if (paymentMethod.value === 'CASH') {
-            // Show receipt immediately, don't close modal yet
-            receiptData.value = paymentResult.receiptData;
+            // Map backend response to production-grade ReceiptData structure
+            const raw = paymentResult.receiptData;
+            receiptData.value = {
+                transactionNo: raw.code,
+                date: raw.date,
+                cashierName: raw.cashier,
+                paymentMethod: raw.paymentMethod,
+                items: raw.items.map((item: any) => ({
+                    id: item.id || Math.random().toString(36).substr(2, 9),
+                    name: item.name,
+                    qty: item.quantity,
+                    price: item.price,
+                    subtotal: item.total
+                })),
+                subtotal: raw.subtotal,
+                taxRate: 0.11,
+                taxAmount: raw.tax,
+                rounding: 0,
+                total: raw.total,
+                paidAmount: raw.paidAmount,
+                changeAmount: raw.change,
+                qrData: raw.code // Use transaction code as QR fallback if no specific data
+            };
+            
             isPaymentModalOpen.value = false;
             isReceiptModalOpen.value = true;
             cartStore.clearCart();
@@ -169,23 +191,27 @@ const confirmQrisPaid = async () => {
         // Trigger the webhook to mark as PAID
         await api.post('/payments/qris/webhook', { transactionId: qrisData.value.transactionId });
 
-        // Build receipt data for QRIS
+        // Build receipt data for QRIS matching production structure
         receiptData.value = {
-            code: qrisData.value.transactionId.slice(0, 16).toUpperCase(),
+            transactionNo: qrisData.value.transactionId.toUpperCase(),
             date: new Date().toISOString(),
+            cashierName: 'System / QRIS',
+            paymentMethod: 'QRIS',
             items: cartStore.items.map(item => ({
+                id: item.product.id,
                 name: item.product.name,
-                quantity: item.quantity,
-                price: item.price,
-                total: item.price * item.quantity
+                qty: item.quantity,
+                price: Number(item.price),
+                subtotal: Number(item.price) * item.quantity
             })),
             subtotal: cartStore.subtotal,
-            tax: cartStore.tax,
+            taxRate: 0.11,
+            taxAmount: cartStore.tax,
+            rounding: 0,
             total: cartStore.total,
             paidAmount: cartStore.total,
-            change: 0,
-            cashier: 'QRIS Payment',
-            paymentMethod: 'QRIS'
+            changeAmount: 0,
+            qrData: qrisData.value.transactionId
         };
 
         isPaymentModalOpen.value = false;

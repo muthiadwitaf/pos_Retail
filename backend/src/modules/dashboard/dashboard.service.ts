@@ -45,7 +45,7 @@ export class DashboardService {
             const rawCategory = await prisma.$queryRaw<any[]>`
                 SELECT 
                     cat_name as category,
-                    SUM(item_total) as total
+                    SUM(item_total)::FLOAT as total
                 FROM (
                     SELECT 
                         COALESCE(parent.name, c.name, 'Uncategorized') as cat_name,
@@ -61,7 +61,7 @@ export class DashboardService {
             `;
             salesByCategory = rawCategory.map(r => ({
                 category: r.category,
-                total: Number(r.total)
+                total: Number(r.total || 0)
             }));
         } catch (e) {
             console.error('Chart: salesByCategory query failed', e);
@@ -69,12 +69,11 @@ export class DashboardService {
 
         try {
             // 2. Sales per Hour (Bar chart - today in WIB/Jakarta timezone)
-            // Double AT TIME ZONE needed: first declares stored value is UTC, second converts to Jakarta
             const rawHour = await prisma.$queryRaw<any[]>`
                 SELECT 
-                    EXTRACT(HOUR FROM t.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta') as hour,
-                    COALESCE(SUM(t.total_amount), 0) as total,
-                    COUNT(*) as count
+                    EXTRACT(HOUR FROM t.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::INT as hour,
+                    SUM(t.total_amount)::FLOAT as total,
+                    COUNT(*)::INT as count
                 FROM transactions t
                 WHERE (t.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta')::date = (NOW() AT TIME ZONE 'Asia/Jakarta')::date
                 GROUP BY hour
@@ -82,8 +81,8 @@ export class DashboardService {
             `;
             salesByHour = rawHour.map(r => ({
                 hour: Number(r.hour),
-                total: Number(r.total),
-                count: Number(r.count)
+                total: Number(r.total || 0),
+                count: Number(r.count || 0)
             }));
         } catch (e) {
             console.error('Chart: salesByHour query failed', e);
@@ -94,8 +93,8 @@ export class DashboardService {
             const rawMonth = await prisma.$queryRaw<any[]>`
                 SELECT 
                     TO_CHAR(t.created_at, 'YYYY-MM') as month,
-                    COALESCE(SUM(t.total_amount), 0) as total,
-                    COUNT(*) as count
+                    SUM(t.total_amount)::FLOAT as total,
+                    COUNT(*)::INT as count
                 FROM transactions t
                 WHERE t.created_at >= NOW() - INTERVAL '12 months'
                 GROUP BY month
@@ -103,8 +102,8 @@ export class DashboardService {
             `;
             salesByMonth = rawMonth.map(r => ({
                 month: r.month,
-                total: Number(r.total),
-                count: Number(r.count)
+                total: Number(r.total || 0),
+                count: Number(r.count || 0)
             }));
         } catch (e) {
             console.error('Chart: salesByMonth query failed', e);

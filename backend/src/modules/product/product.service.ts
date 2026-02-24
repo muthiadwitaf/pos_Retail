@@ -1,12 +1,16 @@
 import { ProductRepository } from './product.repository';
+import { StockRepository } from '../stock/stock.repository';
 import { AppError } from '../../common/errors/AppError';
 import { Prisma } from '@prisma/client';
+import prisma from '../../config/prisma';
 
 export class ProductService {
     private productRepository: ProductRepository;
+    private stockRepository: StockRepository;
 
     constructor() {
         this.productRepository = new ProductRepository();
+        this.stockRepository = new StockRepository();
     }
 
     async getAllProducts(query: { search?: string; categoryId?: string; page?: number; limit?: number }) {
@@ -57,16 +61,66 @@ export class ProductService {
         const existing = await this.productRepository.findBySku(data.sku);
         if (existing) throw new AppError('SKU already exists', 400);
 
-        return this.productRepository.create(data);
+        const initialStock = data.stock || 0;
+
+        // Use transaction to create product + stock movement atomically
+        const product = await prisma.$transaction(async (tx) => {
+            const created = await tx.product.create({
+                data,
+                include: { category: true },
+            });
+
+            // Record initial stock movement if stock > 0
+            if (initialStock > 0) {
+                await this.stockRepository.createMovement({
+                    productId: created.id,
+                    type: 'IN',
+                    quantity: initialStock,
+                    reason: 'Initial stock - product created',
+                }, tx);
+            }
+
+            return created;
+        });
+
+        return product;
     }
 
     async updateProduct(id: string, data: any) {
-        await this.getProduct(id);
+        const currentProduct = await this.getProduct(id);
         if (data.sku) {
             const existing = await this.productRepository.findBySku(data.sku);
             if (existing && existing.id !== id) throw new AppError('SKU already exists', 400);
         }
-        return this.productRepository.update(id, data);
+
+        // Track stock changes
+        const newStock = data.stock !== undefined ? Number(data.stock) : null;
+        const oldStock = currentProduct.stock;
+
+        const product = await prisma.$transaction(async (tx) => {
+            const updated = await tx.product.update({
+                where: { id },
+                data,
+                include: { category: true },
+            });
+
+            // Record stock movement if stock changed
+            if (newStock !== null && newStock !== oldStock) {
+                const diff = newStock - oldStock;
+                await this.stockRepository.createMovement({
+                    productId: id,
+                    type: diff > 0 ? 'IN' : 'OUT',
+                    quantity: Math.abs(diff),
+                    reason: diff > 0
+                        ? `Stock increased from ${oldStock} to ${newStock}`
+                        : `Stock decreased from ${oldStock} to ${newStock}`,
+                }, tx);
+            }
+
+            return updated;
+        });
+
+        return product;
     }
 
     async deleteProduct(id: string) {
@@ -74,3 +128,4 @@ export class ProductService {
         return this.productRepository.softDelete(id);
     }
 }
+

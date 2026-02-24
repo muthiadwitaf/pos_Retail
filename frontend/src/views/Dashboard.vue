@@ -316,6 +316,9 @@ onMounted(() => {
                     <div v-if="chartsLoading" class="h-64 flex items-center justify-center">
                         <div class="animate-spin rounded-full h-8 w-8 border-4 border-primary-light border-t-primary"></div>
                     </div>
+                    <div v-else-if="salesByHour.length === 0" class="h-64 flex items-center justify-center text-gray-400 text-sm font-medium">
+                        No transactions recorded for today
+                    </div>
                     <div v-else class="h-64">
                         <Bar :data="hourlyChartData" :options="hourlyChartOptions" />
                     </div>

@@ -7,6 +7,6 @@ const stockController = new StockController();
 
 router.use(protect);
 
-router.get('/history', stockController.getHistory);
+router.get('/', stockController.getHistory);
 
 export default router;

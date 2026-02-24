@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useAuthStore } from '../stores/auth';
-import { useRouter, useRoute } from 'vue-router';
+import { useRoute } from 'vue-router';
 import { 
   LayoutDashboard, 
   ShoppingCart, 
@@ -14,7 +14,6 @@ import {
 } from 'lucide-vue-next';
 
 const authStore = useAuthStore();
-const router = useRouter();
 const route = useRoute();
 const isSidebarOpen = ref(true);
 
